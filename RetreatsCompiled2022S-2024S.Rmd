@@ -1,0 +1,552 @@
+---
+title: "Comprehensive Data Analysis from 2022 Summer to 2024 Summer Retreat"
+author: "Kentucky Medic Team"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 3
+  pdf_document:
+    dev: png
+    fig_caption: yes
+    toc: yes
+    toc_depth: 3
+geometry: margin=1in
+fontsize: 10pt
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.align="center", fig.height=4.5, fig.width=8, 
+                      collapse=T, comment="", prompt=F, echo = T, cache=F, 
+                      autodep=T, tidy=F, 
+                      tidy.opts=list(width.cutoff=63), dev='png')
+options(width=63)
+
+```
+
+```{r, include=FALSE}
+library(rmarkdown)
+library(readr)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(tidymodels)
+library(stringr)
+library(RColorBrewer)
+```
+
+
+```{r, include=FALSE}
+summer2022data <- read_csv("/Users/user/Desktop/의무봉사/2022 Summer 의무/2022SummerPatientLog.csv")
+summer2022meds <- read_csv("/Users/user/Desktop/의무봉사/2022 Summer 의무/2022SummerMedicationCount.csv")
+summer2022age <- read_csv("/Users/user/Desktop/의무봉사/2022 Summer 의무/2022SummerAgeData.csv")
+summer2022hourtime <- read_csv("/Users/user/Desktop/의무봉사/2022 Summer 의무/2022SummerTime2.csv")
+winter2022data <- read_csv("/Users/user/Desktop/의무봉사/2022 Winter 의무/2022WinterRetreatPatientLog.csv")
+summer2023data <- read_csv("/Users/user/Desktop/의무봉사/2023 Summer 의무/2023summerretreatinfirmary.csv")
+casedata2022_2023 <- read_csv("/Users/user/Desktop/의무봉사/RetreatCompiled/2022S-2024S/numberofcases copy.csv")
+summer2022timedata <- read_csv("/Users/user/Desktop/의무봉사/2022 Summer 의무/2022SummerTime2.csv")
+winter2023data <- read_csv("/Users/user/Desktop/의무봉사/2023 Winter 의무/2023 Winter Retreat Infirmary.csv")
+summer2024data <- read_csv("/Users/user/Desktop/의무봉사/2024 Summer 의무/2024 Summer Retreat Infirmary.csv")
+```
+
+```{r, include=F}
+summer2022data$Reason_of_Visit <- tolower(summer2022data$Reason_of_Visit)
+summer2022data$Medication_Intervention <- tolower(summer2022data$Medication_Intervention)
+summer2022data <- summer2022data %>% mutate(Retreat = 'Summer2022')
+winter2022data$Reason_of_Visit <- tolower(winter2022data$Reason_of_Visit)
+winter2022data$Intervention_Medication <- tolower(winter2022data$Intervention_Medication)
+winter2022data <- winter2022data %>% mutate(Retreat = 'Winter2022')
+summer2023data$Reason <- tolower(summer2023data$Reason)
+summer2023data$Intervention <- tolower(summer2023data$Intervention)
+summer2023data <- summer2023data %>% mutate(Retreat = 'Summer2023')
+winter2022data <- winter2022data %>% select(-Time)
+summer2022data <- summer2022data %>% select(-Time)
+winter2023data <- winter2023data %>% mutate(Retreat = 'Winter2023')
+winter2023data <- winter2023data %>% select(-Notes)
+summer2024data <- summer2024data %>% mutate(Retreat = 'Summer2024')
+
+```
+
+```{r, include=F}
+summer2022data <- summer2022data %>% 
+    rename("Reason" = "Reason_of_Visit",
+           "Intervention" = "Medication_Intervention",
+           "CaseID" = "CaseId")
+winter2022data <- winter2022data %>% 
+    rename("Reason" = "Reason_of_Visit",
+           "Intervention" = "Intervention_Medication",
+           "CaseID" = "Case_ID",
+           "Time" = "Hour_Time")
+summer2023data <- summer2023data %>% 
+    rename("CaseID" = "Case ID")
+summer2022timedata <- summer2022timedata %>% 
+    rename("Time" = "Hour_Time",
+           "n" = "Number_of_Patients")
+summer2022data$Age <- as.character(summer2022data$Age)
+winter2023data$Age <- as.character(winter2023data$Age)
+```
+
+```{r, include=F}
+totalretreatdata <- bind_rows(summer2022data, winter2022data, summer2023data, winter2023data, summer2024data)
+totalretreatdata <- totalretreatdata %>%
+  mutate(Season = ifelse(grepl("^summer", Retreat), "summer", 
+                         ifelse(grepl("^winter", Retreat), "winter", NA))) 
+```
+
+
+# Number of Cases
+
+We had the most patients during the 2023 Summer Retreat, with 165 patient cases. We also observe a trend of higher cases during the summer retreats than the winter retreats.  
+```{r, echo=F}
+ggplot (casedata2022_2023, aes(x= Retreat, y= Number_of_Cases)) +
+    geom_bar (stat= "identity", fill = "#8ebbde") + labs (y = "Number of Patient Cases", x = "Retreat")
+```
+
+*The bar graph above displays the number of patient cases received by the infirmary during past retreats, highlighting seasonal differences between the summer and winter.*
+
+# Intervention
+
+**MOST USED MEDICATIONS**
+```{r, include=F}
+totalretreatdata$Intervention <- trimws(totalretreatdata$Intervention)
+
+patterns <- c("\\bzyrtecd\\b", "\\btylenol_extra_strength\\b", "\\bacetaminophen\\b", "\\bkid_tylenol\\b", "\\bsennocide\\b", "\\bpeptobismol\\b", "\\bnyquil\\b", "\\bmucus_relief_dm\\b", "\\blozenge\\b", "\\bimmodium\\b", "\\bfastal\\b", "\\bcortizone_cooling_relief_gel_10\\b", "\\bcortizone\\b", "\\bcertirizine\\b", "\\bcetrizine\\b", "\\balaway_eye_drop\\b", "\\balaway\\b", "\\beye_drops\\b", "\\badvil\\b", "\\bibuprofen_600\\b", "\\bibuprofen_800\\b", "\\bibuprofen_liquid_gel\\b", "\\btriamcinolone_acetonide_ointment\\b", "\\bsennoside\\b", "\\bsalonpas\\b", "\\bondasteron\\b", "\\blonzenge\\b", "\\bmedrol_pak\\b", "\\bchloraseptic_lozenge\\b", "\\blozenges\\b", "\\btriple_antibiotic\\b", "\\bchildren's loratadine\\b", "\\bcortizone_10\\b", "\\bnexlum\\b", "\\bsimple_saline\\b", "\\bodansetron\\b", "\\badvil_liquid_gel\\b","\\bACE_wrap\\b", "\\ballegra\\b", "\\bpepto\\b")
+replacements <- c("zyrtec-d", "tylenol", "tylenol", "children's_tylenol", "senna", "pepto_bismol", "nightquil", "mucinex_dm", "lozenges", "imodium", "festal", "cortizone_cooling_relief_gel", "cortizone_cooling_relief_gel", "cetirizine", "cetirizine", "alaway_eyedrops", "alaway_eyedrops", "alaway_eyedrops", "ibuprofen", "ibuprofen", "ibuprofen", "ibuprofen", "triamcinolone", "senna", "pain_relief_patch", "ondansetron", "lozenges", "medrol", "chloraseptic", "chloraseptic", "antibiotic_ointment", "children's_loratadine", "cortizone_cooling_relief_gel", "nexium", "saline_wash", "ondansetron", "ibuprofen", "ace_wrap", "fexofenadine", "pepto_bismol")
+
+totalretreatdata$Intervention_temp <- totalretreatdata$Intervention
+
+for (i in seq_along(patterns)) {
+  totalretreatdata$Intervention_temp <- gsub(patterns[i], replacements[i], totalretreatdata$Intervention_temp, ignore.case = TRUE)
+}
+
+totalretreatdata$Intervention_temp <- trimws(totalretreatdata$Intervention_temp)
+
+totalretreatdata$Intervention <- totalretreatdata$Intervention_temp
+totalretreatdata <- totalretreatdata[, !(names(totalretreatdata) %in% "Intervention_temp")]
+
+totalretreatdata_complete <- totalretreatdata %>% group_by(Intervention) %>% count()
+totalretreatdata2 <- totalretreatdata_complete[complete.cases(totalretreatdata_complete),]
+
+totalretreatdata21 <- totalretreatdata2 %>% 
+  arrange(desc(n)) %>% 
+  head(5)
+```
+
+
+The top five most frequently used interventions across all previous retreats were ibuprofen, Tylenol, DayQuil, Band-Aid, and pain relief patches.
+
+```{r, echo=FALSE}
+p <- ggplot(totalretreatdata21, aes(x = reorder(Intervention, +n), y = n))
+p <- p + geom_bar(stat="identity", fill='#8ebbde')
+p <- p + theme(axis.text.y = element_text(size = 10)) 
+p <- p + coord_flip() + labs(x= "Name of Intervention", y= "Count")
+p
+```
+*Above is a bar graph showing the top five most frequently used interventions across all past retreats.*
+<br><br>
+
+```{r, echo=FALSE}
+totalretreatdata2 %>% as.data.frame() %>% arrange(desc(n))
+```
+
+*Above is a table showing the count of all medications and interventions used during all past retreats, arranged from most used to least used.*
+<br><br>
+**TRENDS OF THE TOP 5 INTERVENTIONS OVER PREVIOUS RETREATS**
+
+```{r, include=F}
+selected_interventions <- c("ibuprofen", "tylenol", "dayquil", "bandaid", "pain_relief_patch")
+filtered2 <- totalretreatdata %>%
+  filter(Intervention %in% selected_interventions) %>%
+  group_by(Retreat, Intervention) %>%
+  count() %>%
+  group_by(Retreat) %>%
+  mutate(Frequency = n / sum(n))
+```
+
+```{r, echo=F}
+ggplot(filtered2, aes(x = factor(Retreat, levels = c("Summer2022", "Winter2022", "Summer2023", "Winter2023", "Summer2024")), y = Frequency, group = Intervention, color = Intervention)) +
+  geom_line() +
+  labs(
+       x = "Retreat",
+       y = "Relative Frequency",
+       color = "Intervention") +
+  theme_minimal()
+```
+*The line graph above illustrates the trends of the top five interventions observed across the past retreats. It shows the relative frequency of each intervention for each retreat, providing an overview of how these interventions have varied over time.*
+
+In recent retreats, ibuprofen has been the most frequently used medication. We also observe a higher usage of ibuprofen during winter retreats compared to summer retreats - a trend that has been consistent so far. However, we will need to monitor whether this trend continues in the upcoming winter retreat.
+
+Our data shows that Band-Aids and DayQuil are used more during summer retreats than in winter retreats. On the other hand, the use of pain relief patches has remained stable with no significant increase or decrease in either season.
+
+There has been a noticeable decrease in Tylenol usage during the recent 2024 Summer Retreat, despite its apparent stabilization in previous retreats. This decline may be due to a noticeable lower frequency of headaches as a reason of visit with more cases related to allergies and nausea during the last 2024 Summer Retreat.
+<br>
+
+# Reason of Visit
+
+**TOP REASONS OF PATIENT VISIT**
+
+The top 5 reasons of visit from all past retreats were due to headache, allergy, sore throat, cough, and cut.
+```{r, include=F}
+totalretreatdata$Reason <- trimws(totalretreatdata$Reason)
+
+patterns <- c("\\bbody_ache\\b", "\\bstomachache\\b", "\\bcold_like_symptoms\\b", "\\bflu_like_symptoms\\b", "\\bvomiting\\b", "\\bcoughing\\b", "\\bstomach_ache\\b", "\\bstomach_issues\\b", "\\bankle\\b", "\\bbrusing\\b", "\\bcold\\b", "\\dry_cough\\b", "\\breflux\\b", "\\bsplnter\\b", "\\btongue\\b", "\\bpain\\b")
+
+replacements <- c("bodyache", "stomach_pain", "cold_symptoms", "flu_symptoms", "vomiting", "cough", "stomach_pain", "stomach_pain", "ankle", "bruise", "cold_symptoms", "cough", "acid_reflux", "splinter", "tongue_pain", "general_pain")
+
+totalretreatdata$Reason_temp <- totalretreatdata$Reason
+
+for (i in seq_along(patterns)) {
+  totalretreatdata$Reason_temp <- gsub(patterns[i], replacements[i], totalretreatdata$Reason_temp, ignore.case = TRUE)
+}
+
+totalretreatdata$Reason_temp <- trimws(totalretreatdata$Reason_temp)
+
+totalretreatdata$Reason <- totalretreatdata$Reason_temp
+totalretreatdata <- totalretreatdata[, !(names(totalretreatdata) %in% "Reason_temp")]
+
+totalretreatdata_complete1 <- totalretreatdata %>% group_by(Reason) %>% count()
+totalretreatdata3 <- totalretreatdata_complete1[complete.cases(totalretreatdata_complete1),]
+
+totalretreatdata31 <- totalretreatdata3 %>% 
+  arrange(desc(n)) %>% 
+  head(5)
+```
+
+```{r, echo=F}
+p <- ggplot(totalretreatdata31, aes(x = reorder(Reason, +n), y = n))
+p <- p + geom_bar(stat="identity",fill='#8ebbde')
+p <- p + theme(axis.text.y = element_text(size = 10)) 
+p <- p + coord_flip() + labs(x= "Reason of Visit", y= "Count" )
+p
+```
+*Above is a bar graph that displays the top five reasons of visit from all previous retreats.*
+<br><br>
+
+```{r, echo=FALSE}
+totalretreatdata3 %>% as.data.frame() %>% arrange(desc(n))
+```
+*The table above displays the count of all reasons of patient visit, ranked from most to least common, from past retreat data.*
+<br><br>
+
+**TRENDS OF THE TOP 5 REASONS OF VISIT OVER PREVIOUS RETREATS**
+```{r, include=F}
+selected_reason <- c("headache", "sore_throat", "allergy", "cough", "cut")
+filtered3 <- totalretreatdata %>%
+  filter(Reason %in% selected_reason) %>% 
+  group_by(Retreat, Reason) %>%
+  count()
+filtered3 <- filtered3 %>%
+  group_by(Retreat) %>%
+  mutate(Frequency = n / sum(n))
+new_data3 <- data.frame(
+  Retreat = c("Winter2022"),
+  Reason = c("allergy"),
+  n = c(0),
+  Frequency = c(0))
+filtered3 <- rbind(filtered3, new_data3)
+```
+
+```{r, echo=F}
+ggplot(filtered3, aes(x = factor(Retreat, levels = c("Summer2022", "Winter2022", "Summer2023", "Winter2023", "Summer2024")), y = Frequency, group = Reason, color = Reason)) +
+  geom_line() +
+  labs(x = "Retreat",
+       y = "Relative Frequency",
+       color = "Reason of Visit") +
+  theme_minimal()
+```
+*The line graph above illustrates the trends of the top five reasons of visit from our patients across the past retreats. The data is presented in terms of the relative frequency of each intervention during each retreat.*
+
+We observe clear seasonal trends in the reasons for patient visits.
+
+Allergy cases increase significantly during summer retreats but drop notably in the winter, following seasonal patterns as a leading reason for visits during warmer months. For cuts, there is a mild seasonal pattern, with higher occurrences in the summer and fewer in the winter.
+
+Additionally, our data provide insight that sore throats and coughs peak during winter retreat. 
+
+Headache cases saw a rise after the Summer 2022 Retreat and remained as a primary reason for visits during other retreats. However, headache cases in Summer 2024 Retreat decreased to a similar frequency as in Summer 2023. Further data collection will help determine if this trend stabilizes or if we will observe seasonal fluctuations.
+
+# Primary Medications for Top Patient Concerns
+```{r, include = F}
+  totalretreatdata$Intervention_temp <- totalretreatdata$Intervention
+  for (i in seq_along(patterns)) {
+    totalretreatdata$Intervention_temp <- gsub(patterns[i], replacements[i], totalretreatdata$Intervention_temp, ignore.case = TRUE)
+  }
+  totalretreatdata$Intervention_temp <- trimws(totalretreatdata$Intervention_temp)
+  totalretreatdata$Intervention <- totalretreatdata$Intervention_temp
+  totalretreatdata <- totalretreatdata[, !(names(totalretreatdata) %in% "Intervention_temp")]
+```
+
+**HEADACHE**
+```{r, include =F}
+headache <- totalretreatdata %>% filter(Reason=="headache") %>% select(CaseID, Retreat)
+```
+The most common medication given for headaches was Tylenol.
+```{r, echo =F}
+totalretreatdata %>%
+  filter(Reason == "headache") %>% 
+  filter(CaseID %in% headache$CaseID, Retreat %in% headache$Retreat) %>%
+  filter(!is.na(Intervention)) %>%
+  group_by(Intervention) %>%
+  count() %>%
+  arrange(desc(n)) %>%
+  head(1)
+```
+<br>
+**SORE THROAT**
+```{r, include =F}
+sore_throat <- totalretreatdata %>% filter(Reason=="sore_throat") %>% select(CaseID, Retreat)
+```
+The most common medication administered for patients with sore throats was ibuprofen.
+```{r, echo =F}
+totalretreatdata %>%
+  filter(Reason == "sore_throat") %>% 
+  filter(CaseID %in% sore_throat$CaseID, Retreat %in% sore_throat$Retreat) %>%
+  filter(!is.na(Intervention)) %>%
+  group_by(Intervention) %>%
+  count() %>%
+  arrange(desc(n)) %>%
+  head(1)
+```
+
+<br>
+**ALLERGY**
+```{r, include =F}
+allergy <- totalretreatdata %>% filter(Reason=="allergy") %>% select(CaseID, Retreat)
+```
+The most common medication administered for allergies was cetirizine. 
+
+```{r, echo =F}
+totalretreatdata %>%
+  filter(Reason == "allergy") %>% 
+  filter(CaseID %in% allergy$CaseID, Retreat %in% allergy$Retreat) %>%
+  filter(!is.na(Intervention)) %>%
+  group_by(Intervention) %>%
+  count() %>%
+  arrange(desc(n)) %>%
+  head(1)
+```
+<br>
+**COUGH**
+```{r, include =F}
+cough <- totalretreatdata %>% filter(Reason=="cough") %>% select(CaseID, Retreat)
+```
+The most common interventions administered for coughs were cough drops and DayQuil.
+```{r, echo =F}
+totalretreatdata %>%
+  filter(Reason == "cough") %>% 
+  filter(CaseID %in% cough$CaseID, Retreat %in% cough$Retreat) %>%
+  filter(!is.na(Intervention)) %>%
+  group_by(Intervention) %>%
+  count() %>%
+  arrange(desc(n)) %>%
+  head(2)
+```
+<br>
+**CUT**
+```{r, include =F}
+cut <- totalretreatdata %>% filter(Reason=="cut") %>% select(CaseID, Retreat)
+```
+Band-aids were given out most frequently for patients with cuts. 
+```{r, echo =F}
+totalretreatdata %>%
+  filter(Reason == "cut") %>% 
+  filter(CaseID %in% cut$CaseID, Retreat %in% cut$Retreat) %>%
+  filter(!is.na(Intervention)) %>%
+  group_by(Intervention) %>%
+  count() %>%
+  arrange(desc(n)) %>%
+  head(1)
+```
+
+Overall, our data demonstrates targeted approaches to patient care based on symptoms, with preference for using specific medications for particular conditions. This trend reflects a strategic focus on addressing symptoms with the most effective treatments.
+
+# Age
+
+**TOP AGE GROUPS OF OUR PATIENTS**
+```{r, include=FALSE}
+patterns <- c("10", "20", "30", "40","50", "60", "70")
+replacements <- c("10s", "20s", "30s", "40s", "50s", "60s", "70s")
+
+totalretreatdata$Age_temp <- totalretreatdata$Age
+
+for (i in seq_along(patterns)) {
+  totalretreatdata$Age_temp <- ifelse(
+    grepl(patterns[i], totalretreatdata$Age_temp) & !grepl(replacements[i], totalretreatdata$Age_temp),
+    gsub(patterns[i], replacements[i], totalretreatdata$Age_temp, fixed = TRUE),
+    totalretreatdata$Age_temp
+  )
+}
+totalretreatdata$Age <- totalretreatdata$Age_temp
+totalretreatdata <- subset(totalretreatdata, select = -c(Age_temp))
+totalretreatdata4_complete <- totalretreatdata %>% group_by(Age) %>% count()
+totalretreatdata4 <- totalretreatdata4_complete[complete.cases(totalretreatdata4_complete),]
+```
+
+Across all previous retreats, the top three age groups among our patients were in their 20s, 10s, and 30s.
+<br>
+```{r, echo=F}
+p <- ggplot(totalretreatdata4, aes(x = reorder(Age, +n), y = n))
+p <- p + geom_bar(stat="identity",fill='#8ebbde')
+p <- p + coord_flip() + labs(x= "Age Group", y= "Number of Patients" )
+p
+```
+*Above is a bar graph demonstrating the patient count from each age group from all past retreats. *
+
+```{r, include=F}
+filtered4 <- totalretreatdata %>% 
+  group_by(Retreat, Age) %>%
+  count()
+filtered4 <- filtered4 %>%
+  group_by(Retreat) %>%
+  mutate(Frequency = n / sum(n))
+new_data4 <- data.frame(
+  Retreat = c("Winter2022", "Summer2022", "Summer2023", "Winter2022", "Winter2023", "Winter2023"),
+  Age = c("80s", "80s", "70s", "70s", "<10s", "80s"),
+  n = c(0, 0, 0, 0, 0, 0),
+  Frequency = c(0, 0, 0, 0, 0, 0))
+filtered4 <- rbind(filtered4, new_data4)
+filtered4<- filtered4[complete.cases(filtered4),]
+
+```
+
+<br>
+**PATIENT AGE TRENDS ACROSS PREVIOUS RETREATS**
+```{r, echo=F}
+mycolor <- c("#4ddbc3", "#9f51cf", "#cc0202", "#419bd9", "#fa9420", "#a4de40", "#ebde00","#f590c5","#a87a45", "#fc1465", "#0000CC", "#CCCCFF", "#009669", "#666666", "#FF00FF")
+
+ggplot(filtered4, aes(x = factor(Retreat, levels = c("Summer2022", "Winter2022", "Summer2023", "Winter2023", "Summer2024")), y = Frequency, group = Age, color = Age)) + geom_line() +
+  labs(x = "Retreat",
+       y = "Relative Frequency",
+       color = "Age") +
+  scale_color_manual(values = mycolor)+
+  theme_minimal()
+```
+*The line graph above demonstrates the trends of patient age groups observed across the past retreats. The data is presented in terms of the relative frequency of each intervention during each retreat.*
+
+Our data demonstrate our patients in retreats to be in the younger age bracket.
+
+We can observe that the predominant age group among our patients to be in their 20s. 
+
+Interestingly, our data indicate a spike of more patients who are less than 10 years old recently. 
+
+
+# Time
+**NUMBER OF PATIENT VISITS AT EACH HOUR**
+```{r, include = F}
+totalretreatdata5_complete <- totalretreatdata %>% group_by(Time)  %>% count()
+totalretreatdata5 <- totalretreatdata5_complete[complete.cases(totalretreatdata5_complete),]
+merged_time <- rbind(totalretreatdata5, summer2022timedata)
+merged_time <- merged_time %>%
+  group_by(Time) %>%
+  summarize(n = sum(n))
+```
+
+```{r, echo=FALSE}
+ggplot(merged_time, aes(x = Time, y = n)) + geom_point() +geom_line() +
+theme(axis.text.x = element_text(angle = 90, vjust = .5)) +
+  scale_x_continuous("Time", labels = as.character(merged_time$Time), breaks = merged_time$Time) + labs(y= "Number of Patient Visits", x = "Hour of Time" )
+```
+*Above is a line graph representing the number of patients at each hourly time stamp based on data collected from all previous retreats.*
+
+Our data indicates that we have the most patients in the evenings after dinner, typically between 19:00 and 20:00, as well as in the mornings from 8:00 to 9:00. According to the graph, the hour with the highest influx of patients is at 19:00. 
+
+# Church
+
+**TOP CHURCHES AMONG PATIENTS**
+
+The top three churches which our patients belonged to, across all retreats, were NJ, CHI, and DC.
+
+```{r, include=FALSE}
+patterns <- c("ALT", "Orlando", "SIL")
+replacements <- c("ATL", "ORL", "SI")
+
+totalretreatdata$Church_temp <- totalretreatdata$Church
+
+for (i in seq_along(patterns)) {
+  totalretreatdata$Church_temp <- ifelse(
+    grepl(patterns[i], totalretreatdata$Church_temp) & !grepl(replacements[i], totalretreatdata$Church_temp),
+    gsub(patterns[i], replacements[i], totalretreatdata$Church_temp, fixed = TRUE),
+    totalretreatdata$Church_temp
+  )
+}
+
+totalretreatdata$Church <- totalretreatdata$Church_temp
+totalretreatdata <- subset(totalretreatdata, select = -c(Church_temp))
+
+totalretreatdata6_complete <- totalretreatdata %>% group_by(Church) %>% count()
+totalretreatdata6 <- totalretreatdata6_complete[complete.cases(totalretreatdata6_complete),]
+```
+
+```{r, echo=F}
+p <- ggplot(totalretreatdata6, aes(x = reorder(Church, +n), y = n))
+p <- p + geom_bar(stat="identity",fill='#8ebbde')
+p <- p + coord_flip() + labs(x= "Church", y= "Number of Patients" )
+p
+```
+*Above is a bar graph demonstrating the number of patients from each church from all past retreats. *
+
+```{r, include=F}
+filtered6 <- totalretreatdata %>% 
+  group_by(Retreat, Church) %>%
+  count()
+filtered6 <- filtered6 %>%
+  group_by(Retreat) %>%
+  mutate(Frequency = n / sum(n))
+new_data6 <- data.frame(
+  Retreat = c("Winter2022", "Summer2022", "Summer2022", "Winter2022", "Winter2023", "Winter2023", "Summer2024"),
+  Church = c("KY", "KY", "ORL", "ORL", "SI", "ORL", "KY"),
+  n = c(0, 0, 0, 0, 0, 0, 0),
+  Frequency = c(0, 0, 0, 0, 0, 0, 0))
+filtered6 <- rbind(filtered6, new_data6)
+filtered6<- filtered6[complete.cases(filtered6),]
+```
+<br>
+**CHURCH AFFILIATION TRENDS AMONG PATIENTS ACROSS PAST RETREATS**
+```{r, echo=F}
+ggplot(filtered6, aes(x = factor(Retreat, levels = c("Summer2022", "Winter2022", "Summer2023", "Winter2023", "Summer2024")), y = Frequency, group = Church, color = Church)) + geom_line() +
+  labs(x = "Retreat",
+       y = "Relative Frequency",
+       color = "Church") +
+    scale_color_manual(values = mycolor)+
+  theme_minimal()
+```
+*The line graph above illustrates the trends of patient influx from each church, observed across the previous retreats. The data is presented in terms of the relative frequency of each intervention during each retreat.*
+
+According to our data, most patients are consistently from NJ, DC, CHI, and ATL. 
+
+NJ has remained to be a significant region of our patients across all retreats.
+
+We also observe seasonal patterns tied to the regions patients come from. For example, the number of patients from CHI increases during the winter and declines in the summer, while patients from DC and ATL generally exhibit the opposite trend, with numbers decreasing in the winter and increasing during the summer. This trend could be influenced by climate or regional factors affect the health of our patients. Interestingly, patients from ATL went down during the Summer Retreat 2024 although we were expecting its usually spike in the summer. It would be insightful to observe the trend of ATL patients for the next two retreats. 
+
+Based on these trends, we anticipate a significant number of patients from NJ and CHI at the upcoming retreat. Planning ahead, it may be helpful to gather health trend data from NJ and CHI to prepare for the upcoming winter retreat. 
+
+# Conclusion
+
+**SUMMARY OF FINDINGS**
+
+* More patients during the summer retreats than winter retreats
+* Top 3 medications used across all previous retreats: ibuprofen, Tylenol, and DayQuil
+* Top 3 reasons of visit across past retreats: headache, allergy, and sore throat
+* Top 3 age groups of patients from all retreats: 20s, 10s, and 30s
+* Top 3 churches which our patients belonged to: NJ, CHI, and DC
+* Highest influx of patients during 19:00-20:00 and 8:00-9:00
+
+**PROJECTIONS AND APPLICATIONS FOR UPCOMING WINTER RETREAT**
+
+Based on previous trends...
+
+* Expecting less than 100 patient cases
+* Ibuprofen as our top medication given to patients
+* Sore throat and coughs as primary reason of visits from patients
+  * Ibuprofen, cough drops, and DayQuil used most frequently in the past to address sore throats and coughs
+* Expecting to see most of our patients in their 20s and 10s
+* Predicting a lot of patients from NJ and CHI
+  * May be helpful to gather health trends from NJ and CHI beforehand to prepare for the winter retreat
+
+**TRENDS TO MONITOR DURING WINTER RETREAT 2024**
+
+* Whether usage of Tylenol increases again in the winter 
+* Whether trend of headache cases stabilizes or has seasonal fluctuations
+* Observe whether the spike in patients less than 10 years old increases or stabilizes
